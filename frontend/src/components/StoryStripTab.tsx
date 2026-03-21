@@ -7,16 +7,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { generateComic, type ArtStyle, type Comic, type Mode } from "@/api/client";
 
 const artStyles = ["Manga", "Marvel", "Chibi", "Noir", "Webtoon", "Pixel", "Vintage"];
 const modes = ["News Mode", "History Mode", "Drama Mode"];
 const textOptions = ["With Text", "Without Text"];
 const fonts = ["Comic Sans", "Bangers", "Space Grotesk", "JetBrains Mono"];
 
-const mockThumbnails = Array.from({ length: 10 }, (_, i) => ({
-  id: i,
-  color: `hsl(${(i * 36) % 360}, 70%, 30%)`,
-}));
+const modeMap: Record<string, Mode> = {
+  "News Mode": "news",
+  "History Mode": "history",
+  "Drama Mode": "drama",
+};
+
+const styleMap: Record<string, ArtStyle> = {
+  Manga: "manga",
+  Marvel: "marvel",
+  Chibi: "chibi",
+  Noir: "noir",
+  Webtoon: "webtoon",
+  Pixel: "pixel",
+  Vintage: "vintage",
+};
 
 const Dropdown = ({
   label,
@@ -69,9 +81,46 @@ interface StoryStripTabProps {
 const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [mode, setMode] = useState("News Mode");
   const [textOption, setTextOption] = useState("With Text");
+  const [inputQuery, setInputQuery] = useState("");
+  const [bubbleText, setBubbleText] = useState("Drag bubble text");
   const [fontSize, setFontSize] = useState([16]);
   const [selectedFont, setSelectedFont] = useState("Comic Sans");
   const [bubbleColor, setBubbleColor] = useState("#00d4ff");
+  const [generatedComic, setGeneratedComic] = useState<Comic | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const activePanelUrl = generatedComic?.panel_urls[0] ?? "";
+  const activeDialogue = bubbleText;
+
+  const handleGenerate = async () => {
+    const trimmedInput = inputQuery.trim();
+    if (!trimmedInput) {
+      setErrorMessage("Please enter a URL or topic before generating.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setErrorMessage("");
+
+    try {
+      const comic = await generateComic({
+        mode: modeMap[mode],
+        input_query: trimmedInput,
+        art_style: styleMap[artStyle],
+        include_text: textOption === "With Text",
+      });
+      setGeneratedComic(comic);
+      const initialText = comic.script_json.panels[0]?.dialogue[0]?.text;
+      if (initialText) {
+        setBubbleText(initialText);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to generate comic.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="space-y-12">
@@ -101,6 +150,8 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
             <textarea
               placeholder="Paste a URL, type your story, or describe what you want..."
               rows={3}
+              value={inputQuery}
+              onChange={(event) => setInputQuery(event.target.value)}
               className="w-full resize-none rounded-xl border border-border bg-secondary px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <label className="absolute bottom-3 right-3 cursor-pointer rounded-lg bg-muted p-2 text-muted-foreground transition hover:text-primary">
@@ -115,10 +166,11 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
             <Dropdown label="Text" options={textOptions} value={textOption} onChange={setTextOption} />
           </div>
 
-          <Button className="mt-4 w-full gap-2 glow-primary" size="lg">
+          <Button className="mt-4 w-full gap-2 glow-primary" size="lg" onClick={handleGenerate} disabled={isGenerating}>
             <Sparkles className="h-4 w-4" />
-            Generate Comic
+            {isGenerating ? "Generating..." : "Generate Comic"}
           </Button>
+          {errorMessage && <p className="mt-3 text-sm text-destructive">{errorMessage}</p>}
         </div>
       </motion.section>
 
@@ -130,23 +182,24 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
       >
         <h2 className="mb-4 text-xl font-semibold text-foreground">Recent Stories</h2>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
-          {mockThumbnails.map((t) => (
-            <motion.div
-              key={t.id}
-              whileHover={{ scale: 1.05, y: -4 }}
-              className="flex-shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border"
-            >
-              <div
-                className="flex h-36 w-28 items-center justify-center"
-                style={{ backgroundColor: t.color }}
+          {generatedComic ? (
+            generatedComic.panel_urls.map((url, index) => (
+              <motion.div
+                key={`${generatedComic.id}-${index}`}
+                whileHover={{ scale: 1.05, y: -4 }}
+                className="flex-shrink-0 overflow-hidden rounded-xl border border-border"
               >
-                <ImageIcon className="h-8 w-8 text-foreground/30" />
-              </div>
-              <div className="bg-card p-2">
-                <p className="text-xs text-muted-foreground">Story #{t.id + 1}</p>
-              </div>
-            </motion.div>
-          ))}
+                <img src={url} alt={`Panel ${index + 1}`} className="h-36 w-28 object-cover" />
+                <div className="bg-card p-2">
+                  <p className="text-xs text-muted-foreground">{generatedComic.title}</p>
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="flex h-36 w-full items-center justify-center rounded-xl border border-dashed border-border bg-card text-sm text-muted-foreground">
+              Generate a comic to see recent panels here.
+            </div>
+          )}
         </div>
       </motion.section>
 
@@ -160,15 +213,25 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
           {/* Canvas */}
           <div className="relative flex min-h-[400px] items-center justify-center rounded-2xl border border-border bg-card">
-            <div className="flex h-72 w-52 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, hsl(190,70%,20%), hsl(280,60%,20%))" }}>
-              <ImageIcon className="h-16 w-16 text-foreground/20" />
-            </div>
+            {activePanelUrl ? (
+              <img src={activePanelUrl} alt="Generated panel" className="h-72 w-52 rounded-lg object-cover" />
+            ) : (
+              <div className="flex h-72 w-52 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, hsl(190,70%,20%), hsl(280,60%,20%))" }}>
+                <ImageIcon className="h-16 w-16 text-foreground/20" />
+              </div>
+            )}
             <button className="absolute right-3 top-3 rounded-lg bg-secondary p-2 text-muted-foreground transition hover:text-primary">
               <Maximize className="h-4 w-4" />
             </button>
-            {/* Mock speech bubble */}
-            <div className="absolute left-1/2 top-16 -translate-x-1/4 cursor-move rounded-xl border-2 border-primary/50 bg-card/90 px-4 py-2 text-sm font-medium text-foreground shadow-lg backdrop-blur">
-              Drag me! 💬
+            <div
+              className="absolute left-1/2 top-16 -translate-x-1/4 cursor-move rounded-xl border-2 border-primary/50 bg-card/90 px-4 py-2 text-sm font-medium text-foreground shadow-lg backdrop-blur"
+              style={{
+                borderColor: bubbleColor,
+                fontSize: `${fontSize[0]}px`,
+                fontFamily: selectedFont,
+              }}
+            >
+              {activeDialogue}
             </div>
           </div>
 
@@ -180,11 +243,16 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
 
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">Bubble Text</label>
-              <Input placeholder="Enter bubble text..." className="bg-secondary" />
+              <Input
+                placeholder="Enter bubble text..."
+                className="bg-secondary"
+                value={bubbleText}
+                onChange={(event) => setBubbleText(event.target.value)}
+              />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Font Size: {fontSize}px</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Font Size: {fontSize[0]}px</label>
               <Slider value={fontSize} onValueChange={setFontSize} min={10} max={48} step={1} />
             </div>
 

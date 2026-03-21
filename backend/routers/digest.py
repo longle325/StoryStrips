@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-router = APIRouter()
 
+router = APIRouter()
 
 @router.get("/digest")
 async def get_digest():

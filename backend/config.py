@@ -17,8 +17,7 @@ class Settings(BaseSettings):
     valsea_api_key: str = ""
 
     port: int = 8000
-    # pydantic-settings parses "http://a.com,http://b.com" env var natively into list[str]
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:8080", "http://localhost:5173"]
 
 
 settings = Settings()
