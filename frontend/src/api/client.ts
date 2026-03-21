@@ -9,6 +9,12 @@ export interface Dialogue {
   bubble_type: "speech" | "thought" | "shout";
 }
 
+export interface CharacterCoord {
+  name: string;
+  x: number;
+  y: number;
+}
+
 export interface Panel {
   panel_number: number;
   scene_description: string;
@@ -20,8 +26,10 @@ export interface Panel {
   dialogue: Dialogue[];
   narration: string | null;
   sfx: string | null;
+  caption?: string | null;
   image_url: string | null;
   image_status: ImageStatus;
+  character_coords?: CharacterCoord[];
 }
 
 export interface ComicScript {
@@ -129,4 +137,49 @@ export async function refreshDigest(): Promise<{ status: string; count: number; 
   return request<{ status: string; count: number; articles: DigestArticle[] }>("/digest/refresh", {
     method: "POST",
   });
+}
+
+export type SSECallback = (event: string, data: Record<string, unknown>) => void;
+
+export async function streamRefreshDigest(onEvent: SSECallback): Promise<void> {
+  const response = await fetch(`${API_BASE}/digest/refresh/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`API ${response.status}: ${text || response.statusText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop()!;
+
+    for (const part of parts) {
+      let eventName = "message";
+      let dataStr = "";
+      for (const line of part.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataStr = line.slice(5).trim();
+      }
+      if (dataStr) {
+        try {
+          onEvent(eventName, JSON.parse(dataStr));
+        } catch {
+          onEvent(eventName, { raw: dataStr });
+        }
+      }
+    }
+  }
 }

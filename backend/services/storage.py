@@ -15,6 +15,7 @@ async def save_comic(
     text_mode: str = "without_text",
     is_digest: bool = False,
     digest_date: str | None = None,
+    source_url: str | None = None,
 ) -> dict:
     comic_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -38,6 +39,8 @@ async def save_comic(
         row["is_digest"] = True
     if digest_date is not None:
         row["digest_date"] = digest_date
+    if source_url is not None:
+        row["source_url"] = source_url
     try:
         supabase.table("comics").insert(row).execute()
     except Exception as e:

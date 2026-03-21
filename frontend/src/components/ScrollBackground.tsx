@@ -57,11 +57,12 @@ const ScrollBackground = ({ artStyle }: ScrollBackgroundProps) => {
           <img
             src={images[activeIndex]}
             alt=""
-            className="h-full w-full object-cover blur-3xl brightness-[0.25] scale-110"
+            className="h-full w-full object-cover brightness-[1] scale-110"
+            style={{ filter: "blur(7px) brightness(1)" }}
           />
         </motion.div>
       </AnimatePresence>
-      <div className="absolute inset-0 bg-background/60" />
+      <div className="absolute inset-0 bg-background/30" />
     </div>
   );
 };

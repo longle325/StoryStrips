@@ -4,7 +4,12 @@ import StoryStripTab from "@/components/StoryStripTab";
 import DailyDigestTab from "@/components/DailyDigestTab";
 import MyStoriesTab from "@/components/MyStoriesTab";
 import ScrollBackground from "@/components/ScrollBackground";
-import { AnimatePresence, motion } from "framer-motion";
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  display: active ? "block" : "none",
+  opacity: active ? 1 : 0,
+  transition: "opacity 0.2s ease",
+});
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("storystrip");
@@ -19,21 +24,15 @@ const Index = () => {
       )}
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="container pb-16">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
-          >
-            {activeTab === "storystrip" && (
-              <StoryStripTab artStyle={artStyle} onArtStyleChange={setArtStyle} />
-            )}
-            {activeTab === "daily-digest" && <DailyDigestTab />}
-            {activeTab === "my-stories" && <MyStoriesTab />}
-          </motion.div>
-        </AnimatePresence>
+        <div style={tabStyle(activeTab === "storystrip")}>
+          <StoryStripTab artStyle={artStyle} onArtStyleChange={setArtStyle} />
+        </div>
+        <div style={tabStyle(activeTab === "daily-digest")}>
+          <DailyDigestTab />
+        </div>
+        <div style={tabStyle(activeTab === "my-stories")}>
+          <MyStoriesTab />
+        </div>
       </main>
     </div>
   );

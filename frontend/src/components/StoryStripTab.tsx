@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Sparkles, Upload,
-  ChevronDown, ChevronLeft, ChevronRight,
+  ChevronDown, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { generateComic, type ArtStyle, type Mode, type GeneratedComic } from "@/api/client";
+import ComicPanel from "@/components/ComicPanel";
+import EditTextTab from "@/components/EditTextTab";
 
 const artStyles = ["Manga", "Marvel", "Chibi", "Noir", "Webtoon", "Pixel", "Vintage"];
 const modes = ["News Mode", "History Mode", "Drama Mode"];
+const textOptions = ["With Text", "Without Text"];
 
 const modeMap: Record<string, Mode> = {
   "News Mode": "freeform",
@@ -84,6 +86,7 @@ interface StoryStripTabProps {
 
 const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [mode, setMode] = useState("News Mode");
+  const [textOption, setTextOption] = useState("With Text");
   const [inputQuery, setInputQuery] = useState("");
   const [recentComics, setRecentComics] = useState<RecentComic[]>([]);
   const [selectedComicId, setSelectedComicId] = useState<string | null>(null);
@@ -91,6 +94,31 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [viewerPanelIndex, setViewerPanelIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [genPercent, setGenPercent] = useState(0);
+  const genStartRef = useRef(0);
+  const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopGenTimer = useCallback(() => {
+    if (genTimerRef.current) {
+      clearInterval(genTimerRef.current);
+      genTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isGenerating) {
+      genStartRef.current = Date.now();
+      setGenPercent(0);
+      genTimerRef.current = setInterval(() => {
+        const elapsed = Date.now() - genStartRef.current;
+        const pct = 90 * (1 - Math.exp(-elapsed / 12000));
+        setGenPercent(Math.min(pct, 90));
+      }, 200);
+    } else {
+      stopGenTimer();
+    }
+    return stopGenTimer;
+  }, [isGenerating, stopGenTimer]);
 
   const selectedComic = selectedComicId
     ? recentComics.find((comic) => comic.comic_id === selectedComicId) ?? null
@@ -138,6 +166,7 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         input: trimmedInput,
         mode: selectedMode,
         art_style: styleMap[artStyle],
+        include_text: textOption === "With Text",
       });
 
       const recent: RecentComic = {
@@ -148,10 +177,14 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
       setRecentComics((prev) => [recent, ...prev.filter((c) => c.comic_id !== comic.comic_id)]);
       setSelectedComicId(comic.comic_id);
       setViewerComicId(comic.comic_id);
+      stopGenTimer();
+      setGenPercent(100);
+      await new Promise((r) => setTimeout(r, 400));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to generate comic.");
     } finally {
       setIsGenerating(false);
+      setGenPercent(0);
     }
   };
 
@@ -193,15 +226,30 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
             </label>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-3 gap-3">
             <Dropdown label="Style" options={artStyles} value={artStyle} onChange={onArtStyleChange} />
             <Dropdown label="Mode" options={modes} value={mode} onChange={setMode} />
+            <Dropdown label="Text" options={textOptions} value={textOption} onChange={setTextOption} />
           </div>
 
           <Button className="mt-4 w-full gap-2 glow-primary" size="lg" onClick={handleGenerate} disabled={isGenerating}>
             <Sparkles className="h-4 w-4" />
             {isGenerating ? "Generating..." : "Generate Comic"}
           </Button>
+          {isGenerating && (
+            <div className="mt-3 space-y-1.5">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <motion.div
+                  className="h-full rounded-full bg-primary"
+                  animate={{ width: `${genPercent}%` }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {genPercent >= 100 ? "Complete!" : genPercent < 5 ? "Starting..." : "Generating comic..."}
+              </p>
+            </div>
+          )}
           {errorMessage && <p className="mt-3 text-sm text-destructive">{errorMessage}</p>}
         </div>
       </motion.section>
@@ -221,7 +269,7 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
                 <motion.div
                   key={comic.comic_id}
                   whileHover={{ scale: 1.05, y: -4 }}
-                  className={`group flex-shrink-0 overflow-hidden rounded-xl border ${selectedComicId === comic.comic_id ? "border-primary" : "border-border"}`}
+                  className={`group w-32 flex-shrink-0 overflow-hidden rounded-xl border ${selectedComicId === comic.comic_id ? "border-primary" : "border-border"}`}
                 >
                   {thumb ? (
                     <button
@@ -230,15 +278,15 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
                         setSelectedComicId(comic.comic_id);
                         setViewerComicId(comic.comic_id);
                       }}
-                      className="relative block w-32 aspect-square bg-secondary"
+                      className="relative block w-full aspect-square overflow-hidden bg-secondary"
                     >
-                      <img src={thumb} alt={comic.script.title} className="h-full w-full object-cover" />
+                      <img src={thumb} alt={comic.script.title} className="absolute inset-0 h-full w-full object-cover" />
                       <span className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-1 text-left text-[10px] text-white">
                         {comic.panels.length} panels
                       </span>
                     </button>
                   ) : (
-                    <div className="flex w-32 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
+                    <div className="flex w-full aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
                       {comic.panels[0]?.image_status ?? "pending"}
                     </div>
                   )}
@@ -256,94 +304,125 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         </div>
       </motion.section>
 
-      {/* Viewer Dialog */}
-      <Dialog open={Boolean(viewerComic)} onOpenChange={(open) => !open && setViewerComicId(null)}>
-        <DialogContent className="max-w-6xl border border-border/40 bg-card/90 backdrop-blur-md p-6">
-          <DialogTitle>{viewerComic?.script.title ?? "Story"}</DialogTitle>
-          {viewerComic && (
-            <div className="space-y-4">
-              <div className="relative h-[460px] w-full overflow-hidden rounded-2xl border border-border/60 bg-black/30">
-                {viewerPanels.map((panel, index) => {
-                  const offset = ((index - viewerPanelIndex + viewerPanels.length) % viewerPanels.length);
-                  const normalizedOffset =
-                    offset > Math.floor(viewerPanels.length / 2) ? offset - viewerPanels.length : offset;
-                  const isCenter = normalizedOffset === 0;
-                  const absOffset = Math.abs(normalizedOffset);
+      {/* Fullscreen Viewer Overlay */}
+      <AnimatePresence>
+      {viewerComic && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md"
+          onClick={() => setViewerComicId(null)}
+        >
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setViewerComicId(null)}
+            className="absolute right-6 top-6 z-50 rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
 
-                  if (absOffset > 2) return null;
+          {/* Title */}
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40">
+            <h2 className="text-xl font-bold text-white drop-shadow-lg">
+              {viewerComic.script.title}
+            </h2>
+          </div>
 
-                  return (
-                    <motion.div
-                      key={`${viewerComic.comic_id}-${panel.panel_number}`}
-                      className="absolute left-1/2 top-1/2"
-                      animate={{
-                        x: normalizedOffset * 230,
-                        y: "-50%",
-                        scale: isCenter ? 1 : 0.72 - absOffset * 0.07,
-                        opacity: isCenter ? 1 : 0.5,
-                        zIndex: 20 - absOffset,
-                        rotateY: normalizedOffset * -10,
+          {/* Carousel container */}
+          <div
+            className="relative flex w-full items-center justify-center gap-4 px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left arrow */}
+            <button
+              type="button"
+              onClick={goPrevPanel}
+              disabled={!viewerPanels.length}
+              className="flex-shrink-0 rounded-full bg-white/10 p-3 text-white/70 transition hover:bg-white/20 hover:text-white disabled:opacity-30"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+
+            {/* Panels row */}
+            <div className="relative flex items-center justify-center" style={{ width: "min(90vw, 1100px)", height: "min(80vh, 700px)" }}>
+              {viewerPanels.map((panel, index) => {
+                const offset = ((index - viewerPanelIndex + viewerPanels.length) % viewerPanels.length);
+                const normalizedOffset =
+                  offset > Math.floor(viewerPanels.length / 2) ? offset - viewerPanels.length : offset;
+                const isCenter = normalizedOffset === 0;
+                const absOffset = Math.abs(normalizedOffset);
+
+                if (absOffset > 1) return null;
+
+                return (
+                  <motion.div
+                    key={`${viewerComic.comic_id}-${panel.panel_number}`}
+                    className="absolute cursor-pointer"
+                    animate={{
+                      x: normalizedOffset * 350,
+                      scale: isCenter ? 1 : 0.5,
+                      opacity: isCenter ? 1 : 0.5,
+                      zIndex: isCenter ? 30 : 10,
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    onClick={() => setViewerPanelIndex(index)}
+                    drag={isCenter ? "x" : false}
+                    dragConstraints={{ left: 0, right: 0 }}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.x > 80) goPrevPanel();
+                      else if (info.offset.x < -80) goNextPanel();
+                    }}
+                  >
+                    <div
+                      className={`overflow-hidden rounded-2xl shadow-2xl transition-shadow ${
+                        isCenter ? "ring-2 ring-white/20" : ""
+                      }`}
+                      style={{
+                        width: isCenter ? "min(55vh, 500px)" : "min(55vh, 500px)",
                       }}
-                      transition={{ type: "spring", stiffness: 280, damping: 28 }}
-                      drag={isCenter ? "x" : false}
-                      dragConstraints={{ left: 0, right: 0 }}
-                      onDragEnd={(_, info) => {
-                        if (info.offset.x > 80) goPrevPanel();
-                        else if (info.offset.x < -80) goNextPanel();
-                      }}
-                      style={{ transformStyle: "preserve-3d" }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setViewerPanelIndex(index)}
-                        className="w-52 overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
-                      >
-                        {panel.image_url ? (
-                          <div className="w-52 aspect-square bg-secondary">
-                            <img src={panel.image_url} alt={`Panel ${index + 1}`} className="h-full w-full object-cover" />
-                          </div>
-                        ) : (
-                          <div className="flex w-52 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
-                            {panel.image_status}
-                          </div>
-                        )}
-                        <div className="p-2 text-xs text-muted-foreground text-left">Panel {panel.panel_number}</div>
-                      </button>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-center gap-6">
-                <button
-                  type="button"
-                  onClick={goPrevPanel}
-                  disabled={!viewerPanels.length}
-                  className="rounded-full border border-border bg-secondary p-3 text-muted-foreground transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <div className="flex gap-2">
-                  {viewerPanels.map((_, i) => (
-                    <span
-                      key={`dot-${i}`}
-                      className={`h-2 w-2 rounded-full ${i === viewerPanelIndex ? "bg-primary" : "bg-muted"}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={goNextPanel}
-                  disabled={!viewerPanels.length}
-                  className="rounded-full border border-border bg-secondary p-3 text-muted-foreground transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
+                      <ComicPanel panel={panel} />
+                    </div>
+                    {isCenter && (
+                      <p className="mt-3 text-center text-sm text-white/70">
+                        Panel {panel.panel_number} / {viewerPanels.length}
+                      </p>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            {/* Right arrow */}
+            <button
+              type="button"
+              onClick={goNextPanel}
+              disabled={!viewerPanels.length}
+              className="flex-shrink-0 rounded-full bg-white/10 p-3 text-white/70 transition hover:bg-white/20 hover:text-white disabled:opacity-30"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Dots */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2">
+            {viewerPanels.map((_, i) => (
+              <button
+                key={`dot-${i}`}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setViewerPanelIndex(i); }}
+                className={`h-2.5 w-2.5 rounded-full transition ${i === viewerPanelIndex ? "bg-white scale-125" : "bg-white/40 hover:bg-white/60"}`}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
+      </AnimatePresence>
+
+      {/* Edit Text Section */}
+      <EditTextTab />
     </div>
   );
 };

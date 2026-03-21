@@ -9,7 +9,8 @@ Rules:
 2. Each panel needs: concise but detailed scene description, characters (name, appearance, emotion, position), dialogue (speaker, text, bubble_type), narration (optional), sfx (optional)
 3. Pacing and tone: Match each panel's tone to the story's natural progression. Follow the emotional arc of the source material - if it's humorous, build to the punchline; if it's dramatic, build tension; if it's informative, maintain clarity. Let the story dictate the pacing.
 4. Dialogue: MAX 15 words per bubble. Short. Punchy.
-5. Output ONLY valid JSON matching the schema below. No markdown, no explanation, no code fences.
+5. Each panel MUST have a "caption": a short (max 10 words) context description helping readers understand what this panel is about.
+6. Output ONLY valid JSON matching the schema below. No markdown, no explanation, no code fences.
 
 Required JSON schema:
 {
@@ -24,6 +25,7 @@ Required JSON schema:
       "dialogue": [{"speaker": "string", "text": "string", "bubble_type": "speech|thought|shout"}],
       "narration": "string or null",
       "sfx": "string or null",
+      "caption": "string",
       "image_url": null,
       "image_status": "pending"
     }

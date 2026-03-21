@@ -43,6 +43,12 @@ class Character(BaseModel):
     position: CharacterPosition
 
 
+class CharacterCoord(BaseModel):
+    name: str
+    x: float
+    y: float
+
+
 class Panel(BaseModel):
     panel_number: int
     scene_description: str
@@ -52,6 +58,7 @@ class Panel(BaseModel):
     sfx: str | None = None
     image_url: str | None = None
     image_status: ImageStatus = "pending"
+    character_coords: list[CharacterCoord] = []
 
 
 class ComicScript(BaseModel):
