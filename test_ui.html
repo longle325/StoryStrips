@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StoryStrip API Test UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0d0d1a;
+      --card-bg: #1a1a2e;
+      --border: #2d2d4e;
+      --text: #e0e0f0;
+      --text-muted: #8888aa;
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+      --error: #dc2626;
+      --success: #16a34a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    header .badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Input section */
+    #input-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    #input-section label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    #query-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #query-input:focus {
+      border-color: var(--accent);
+    }
+
+    #query-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .controls label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0;
+    }
+
+    #art-style {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 8px 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #art-style:focus {
+      border-color: var(--accent);
+    }
+
+    #generate-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 24px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      margin-left: auto;
+    }
+
+    #generate-btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    #generate-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Status section */
+    #status-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #status-text {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Comic section */
+    #comic-section {
+      margin-bottom: 24px;
+    }
+
+    .comic-header {
+      margin-bottom: 20px;
+    }
+
+    #comic-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    #comic-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .meta-tag {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 10px;
+    }
+
+    .meta-tag span {
+      color: var(--accent);
+    }
+
+    /* Panels grid */
+    #panels-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .panel-card {
+      background: var(--card-bg);
+      border: 2px solid #111;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .panel-image-container {
+      position: relative;
+      width: 100%;
+      background: #0a0a14;
+      overflow: hidden;
+    }
+
+    .panel-image-container img {
+      width: 100%;
+      display: block;
+    }
+
+    .panel-image-placeholder {
+      width: 100%;
+      height: 240px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .panel-image-placeholder .placeholder-icon {
+      font-size: 36px;
+      opacity: 0.4;
+    }
+
+    /* Narration box — classic comic caption style */
+    .narration-box {
+      position: absolute;
+      top: 8px;
+      left: 36px;
+      right: 8px;
+      background: #fef3c7;
+      color: #1a1a2e;
+      font-size: 11px;
+      font-style: italic;
+      padding: 5px 10px;
+      line-height: 1.4;
+      border: 1.5px solid #d4a017;
+      border-radius: 4px;
+      z-index: 12;
+      box-shadow: 1px 1px 4px rgba(0,0,0,0.3);
+      cursor: text;
+    }
+
+    /* SFX overlay */
+    .sfx-overlay {
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      font-family: 'Bangers', cursive;
+      font-size: 38px;
+      color: #facc15;
+      text-shadow:
+        2px 2px 0 #000,
+        -2px 2px 0 #000,
+        2px -2px 0 #000,
+        -2px -2px 0 #000,
+        3px 3px 6px rgba(0,0,0,0.6);
+      transform: rotate(-8deg);
+      letter-spacing: 2px;
+      pointer-events: none;
+      line-height: 1;
+    }
+
+    /* Bubble container — absolute overlay on image */
+    .bubble-container {
+      position: absolute;
+      max-width: 55%;
+      z-index: 10;
+    }
+
+    .bubble-container:hover .delete-btn {
+      display: flex;
+    }
+
+    /* Speech bubble base */
+    .bubble {
+      padding: 6px 12px;
+      font-size: 12px;
+      line-height: 1.35;
+      border-radius: 16px;
+      position: relative;
+      word-break: break-word;
+      cursor: text;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    /* Tail pointer */
+    .bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 18px;
+      border-width: 8px 6px 0 6px;
+      border-style: solid;
+      border-color: white transparent transparent transparent;
+    }
+
+    .bubble .speaker-name {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1px;
+      color: var(--accent);
+      display: block;
+    }
+
+    .bubble-text {
+      outline: none;
+      display: block;
+      min-width: 20px;
+    }
+
+    .bubble-text:focus {
+      background: rgba(124, 58, 237, 0.08);
+      border-radius: 4px;
+    }
+
+    /* Speech bubble */
+    .bubble-speech {
+      background: #fff;
+      color: #111;
+      border: 2px solid #111;
+    }
+
+    /* Thought bubble */
+    .bubble-thought {
+      background: #f0f4ff;
+      color: #111;
+      border: 2px dashed #555;
+      border-radius: 20px;
+    }
+
+    .bubble-thought::after {
+      border-color: #f0f4ff transparent transparent transparent;
+    }
+
+    /* Shout bubble */
+    .bubble-shout {
+      background: #fff0f0;
+      color: #b91c1c;
+      border: 3px solid var(--error);
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 4px;
+    }
+
+    .bubble-shout::after {
+      border-color: #fff0f0 transparent transparent transparent;
+    }
+
+    /* Delete button on bubble */
+    .delete-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--error);
+      color: white;
+      border: 2px solid #1a1a2e;
+      cursor: pointer;
+      font-size: 11px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      line-height: 1;
+    }
+
+    .delete-btn:hover {
+      background: #ef4444;
+      transform: scale(1.15);
+    }
+
+    /* Narration editable */
+    .narration-box[contenteditable]:focus {
+      background: rgba(124, 58, 237, 0.15);
+      outline: 1px solid var(--accent);
+    }
+
+    /* Panel number badge overlay */
+    .panel-number-badge-overlay {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    /* Raw JSON */
+    details {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    details summary {
+      padding: 14px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-muted);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details summary::before {
+      content: '▶';
+      font-size: 10px;
+      transition: transform 0.15s;
+      color: var(--accent);
+    }
+
+    details[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    details summary:hover {
+      color: var(--text);
+    }
+
+    #raw-json {
+      padding: 16px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #a0c4ff;
+      background: #080810;
+      overflow-x: auto;
+      border-top: 1px solid var(--border);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Error section */
+    #error-section {
+      background: rgba(220, 38, 38, 0.08);
+      border: 1px solid var(--error);
+      border-radius: 10px;
+      padding: 16px 20px;
+    }
+
+    #error-section h3 {
+      color: var(--error);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    #error-message {
+      color: #fca5a5;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* Utility */
+    [hidden] {
+      display: none !important;
+    }
+
+    .image-status-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: 6px;
+    }
+
+    .image-status-done {
+      background: rgba(22, 163, 74, 0.2);
+      color: #4ade80;
+    }
+
+    .image-status-failed {
+      background: rgba(220, 38, 38, 0.2);
+      color: #f87171;
+    }
+
+    .image-status-pending {
+      background: rgba(124, 58, 237, 0.2);
+      color: #a78bfa;
+    }
+
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .mode-btn {
+      padding: 8px 20px;
+      border-radius: 20px;
+      border: 2px solid #2d2d4e;
+      background: #1a1a2e;
+      color: #e0e0f0;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover { border-color: #7c3aed; }
+    .mode-btn.active { background: #7c3aed; border-color: #7c3aed; color: white; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>StoryStrip API Test UI</h1>
+  <span class="badge">Dev Tool</span>
+</header>
+
+<main>
+  <section id="input-section">
+    <label for="query-input">Topic / URL / Drama</label>
+    <div class="mode-selector">
+      <button class="mode-btn active" data-mode="url">📰 News</button>
+      <button class="mode-btn" data-mode="history">📜 History</button>
+      <button class="mode-btn" data-mode="drama">🔥 Drama</button>
+    </div>
+    <textarea
+      id="query-input"
+      placeholder="Enter any topic, URL, or drama...&#10;e.g. https://bbc.com/news/... or 'The fall of the Berlin Wall' or 'Taylor Swift vs Scooter Braun'"
+    ></textarea>
+    <div class="controls">
+      <label for="art-style">Art Style</label>
+      <select id="art-style">
+        <option value="manga" selected>Manga</option>
+        <option value="marvel">Marvel</option>
+        <option value="chibi">Chibi</option>
+        <option value="noir">Noir</option>
+        <option value="webtoon">Webtoon</option>
+        <option value="pixel">Pixel</option>
+        <option value="vintage">Vintage</option>
+      </select>
+      <button id="generate-btn">Generate Comic</button>
+    </div>
+  </section>
+
+  <section id="status-section" hidden>
+    <div class="spinner"></div>
+    <div id="status-text">Sending request…</div>
+  </section>
+
+  <section id="comic-section" hidden>
+    <div class="comic-header">
+      <h2 id="comic-title"></h2>
+      <div id="comic-meta"></div>
+    </div>
+    <div id="panels-grid"></div>
+
+    <details>
+      <summary>Raw JSON Response</summary>
+      <pre id="raw-json"></pre>
+    </details>
+  </section>
+
+  <section id="error-section" hidden>
+    <h3>Request Failed</h3>
+    <div id="error-message"></div>
+  </section>
+</main>
+
+<script>
+  const API_BASE = 'http://localhost:8001';
+
+  let selectedMode = 'url';
+  const modeBtns = document.querySelectorAll('.mode-btn');
+  const placeholders = {
+    url: 'Paste a news article URL...',
+    history: "Type any historical event (e.g. 'Fall of the Berlin Wall')...",
+    drama: 'Describe any drama or paste a Reddit/Twitter link...',
+  };
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedMode = btn.dataset.mode;
+      queryInput.placeholder = placeholders[selectedMode];
+    });
+  });
+
+  const generateBtn = document.getElementById('generate-btn');
+  const queryInput = document.getElementById('query-input');
+  const artStyleSelect = document.getElementById('art-style');
+  const statusSection = document.getElementById('status-section');
+  const statusText = document.getElementById('status-text');
+  const comicSection = document.getElementById('comic-section');
+  const errorSection = document.getElementById('error-section');
+  const errorMessage = document.getElementById('error-message');
+  const comicTitle = document.getElementById('comic-title');
+  const comicMeta = document.getElementById('comic-meta');
+  const panelsGrid = document.getElementById('panels-grid');
+  const rawJson = document.getElementById('raw-json');
+
+  function showSection(id) {
+    ['status-section', 'comic-section', 'error-section'].forEach(s => {
+      document.getElementById(s).hidden = true;
+    });
+    document.getElementById(id).hidden = false;
+  }
+
+  function setLoading(loading) {
+    generateBtn.disabled = loading;
+    generateBtn.textContent = loading ? 'Generating…' : 'Generate Comic';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Track user edits to bubbles
+  const panelEdits = {};
+
+  function onBubbleEdit(panelNumber, dialogueIndex, newText) {
+    if (!panelEdits[panelNumber]) panelEdits[panelNumber] = {};
+    panelEdits[panelNumber][dialogueIndex] = newText;
+  }
+
+  function onBubbleDelete(panelNumber, dialogueIndex) {
+    if (!panelEdits[panelNumber]) panelEdits[panelNumber] = {};
+    panelEdits[panelNumber][dialogueIndex] = null;
+    const el = document.querySelector(`[data-panel="${panelNumber}"][data-dialogue="${dialogueIndex}"]`);
+    if (el) el.remove();
+  }
+
+  function buildPanelCard(panel) {
+    const card = document.createElement('div');
+    card.className = 'panel-card';
+
+    // Image container (all overlays go inside here)
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'panel-image-container';
+
+    // Panel image first
+    const imageUrl = panel.image_url;
+    const imageStatus = panel.image_status || 'unknown';
+
+    if (imageUrl) {
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.alt = `Panel ${panel.panel_number}`;
+      img.onerror = () => {
+        img.replaceWith(buildPlaceholder('Image failed to load', imageStatus));
+      };
+      imgContainer.appendChild(img);
+    } else {
+      imgContainer.appendChild(buildPlaceholder(
+        imageStatus === 'failed' ? 'Image generation failed' : 'No image generated',
+        imageStatus
+      ));
+    }
+
+    // Narration overlay (top of image, editable)
+    if (panel.narration) {
+      const narr = document.createElement('div');
+      narr.className = 'narration-box';
+      narr.contentEditable = true;
+      narr.textContent = panel.narration;
+      imgContainer.appendChild(narr);
+    }
+
+    // Speech bubbles overlaid ON the image
+    const dialogues = panel.dialogue || [];
+    dialogues.forEach((line, idx) => {
+      const character = (panel.characters || []).find(c => c.name === line.speaker);
+      const position = (character?.position || 'center').toLowerCase();
+
+      const container = document.createElement('div');
+      container.className = 'bubble-container';
+      container.dataset.panel = panel.panel_number;
+      container.dataset.dialogue = idx;
+
+      // Position bubbles in top half of image, stagger down for multiple
+      const topOffset = 8 + (idx * 25);
+      const top = Math.min(topOffset, 70);
+
+      if (position === 'left') {
+        container.style.cssText = `left: 4%; top: ${top}%;`;
+      } else if (position === 'right') {
+        container.style.cssText = `right: 4%; top: ${top}%;`;
+      } else {
+        container.style.cssText = `left: 50%; transform: translateX(-50%); top: ${top}%;`;
+      }
+
+      const type = (line.bubble_type || 'speech').toLowerCase();
+      const bubble = document.createElement('div');
+      bubble.className = `bubble bubble-${type}`;
+
+      const speaker = document.createElement('span');
+      speaker.className = 'speaker-name';
+      speaker.textContent = line.speaker || '';
+
+      const text = document.createElement('span');
+      text.className = 'bubble-text';
+      text.contentEditable = true;
+      text.textContent = line.text || '';
+      text.addEventListener('blur', () => {
+        onBubbleEdit(panel.panel_number, idx, text.textContent);
+      });
+
+      bubble.appendChild(speaker);
+      bubble.appendChild(text);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.textContent = '✕';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onBubbleDelete(panel.panel_number, idx);
+      });
+
+      container.appendChild(bubble);
+      container.appendChild(deleteBtn);
+      imgContainer.appendChild(container);
+    });
+
+    // SFX overlay (bottom-right)
+    if (panel.sfx) {
+      const sfx = document.createElement('div');
+      sfx.className = 'sfx-overlay';
+      sfx.textContent = panel.sfx;
+      imgContainer.appendChild(sfx);
+    }
+
+    // Panel number badge (top-left corner of image)
+    const panelBadge = document.createElement('div');
+    panelBadge.className = 'panel-number-badge-overlay';
+    panelBadge.textContent = panel.panel_number || '?';
+    imgContainer.appendChild(panelBadge);
+
+    card.appendChild(imgContainer);
+
+    return card;
+  }
+
+  function buildPlaceholder(message, status) {
+    const div = document.createElement('div');
+    div.className = 'panel-image-placeholder';
+    const icon = document.createElement('div');
+    icon.className = 'placeholder-icon';
+    icon.textContent = status === 'failed' ? '⚠' : '🖼';
+    const msg = document.createElement('div');
+    msg.textContent = message;
+    div.appendChild(icon);
+    div.appendChild(msg);
+    return div;
+  }
+
+  function renderComic(data) {
+    // Title
+    const title = data.title || (data.script && data.script.title) || 'Untitled Comic';
+    const artStyle = data.art_style || (data.script && data.script.art_style) || 'unknown';
+    const detectedType = data.detected_type || data.mode || '';
+    const panelCount = (data.panels || []).length;
+    const generationMs = data.generation_time_ms;
+
+    comicTitle.textContent = title;
+
+    // Meta tags
+    comicMeta.innerHTML = '';
+    const metas = [
+      { label: 'Style', value: artStyle },
+      { label: 'Type', value: detectedType || 'auto' },
+      { label: 'Panels', value: panelCount },
+    ];
+    if (generationMs) {
+      metas.push({ label: 'Time', value: `${(generationMs / 1000).toFixed(1)}s` });
+    }
+
+    metas.forEach(({ label, value }) => {
+      const tag = document.createElement('div');
+      tag.className = 'meta-tag';
+      tag.innerHTML = `${escapeHtml(label)}: <span>${escapeHtml(String(value))}</span>`;
+      comicMeta.appendChild(tag);
+    });
+
+    // Panels
+    panelsGrid.innerHTML = '';
+    const panels = data.panels || [];
+    panels.forEach(panel => {
+      panelsGrid.appendChild(buildPanelCard(panel));
+    });
+
+    if (panels.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'grid-column: 1/-1; color: var(--text-muted); padding: 24px; text-align: center;';
+      empty.textContent = 'No panels found in response.';
+      panelsGrid.appendChild(empty);
+    }
+
+    // Raw JSON
+    rawJson.textContent = JSON.stringify(data, null, 2);
+
+    showSection('comic-section');
+  }
+
+  async function generate() {
+    const query = queryInput.value.trim();
+    if (!query) {
+      queryInput.focus();
+      return;
+    }
+
+    setLoading(true);
+    showSection('status-section');
+    statusText.textContent = 'Sending request to /generate…';
+
+    const body = {
+      input: query,
+      mode: selectedMode,
+      art_style: artStyleSelect.value,
+    };
+
+    try {
+      statusText.textContent = 'Classifying input and fetching content… (Stage 1)';
+
+      const response = await fetch(`${API_BASE}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      statusText.textContent = 'Processing response…';
+
+      let data;
+      const contentType = response.headers.get('content-type') || '';
+
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Non-JSON response (${response.status}): ${text.slice(0, 300)}`);
+      }
+
+      if (!response.ok) {
+        const detail = data.detail || data.message || data.error || JSON.stringify(data);
+        throw new Error(`HTTP ${response.status}: ${detail}`);
+      }
+
+      renderComic(data);
+    } catch (err) {
+      showSection('error-section');
+      errorMessage.textContent = err.message || String(err);
+      console.error('[StoryStrip Test UI] Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  generateBtn.addEventListener('click', generate);
+
+  queryInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      generate();
+    }
+  });
+</script>
+</body>
+</html>

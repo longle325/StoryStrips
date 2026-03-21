@@ -4,21 +4,29 @@
 
 This file is the source of truth for AI agents building StoryStrip. Read it fully before writing any code.
 
+**Also read:** [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — canonical JSON schemas and API endpoints shared between frontend and backend.
+
 ---
 
 ## 1. Project Overview
 
 StoryStrip AI transforms any news article, historical event, or internet drama into a 4–6 panel comic strip in under 30 seconds. Users provide a topic (URL, text, or drama description) and the AI researches, scripts, generates panels, and assembles a shareable comic with speech bubbles, narration, and SFX overlays.
 
-**Three modes:**
-- **News Mode** — paste a URL, get a comic
-- **History Mode** — type any event, choose art style
-- **Drama Mode** — describe any drama, get a viral recap comic
+**Single input, AI-classified pipeline:**
+
+There is only one input: a text field. The user types or pastes anything — a URL, an event name, a drama description, free-form text. The backend AI classifies the input and routes it automatically. No mode selector UI required.
+
+- If it looks like a URL → fetch article via Exa
+- If it looks like a historical event → Exa deep research
+- If it looks like a drama/gossip → Bright Data social scrape + GPT-4.1 summary
+- Ambiguous → GPT-4.1 decides the best approach
+
+The user can optionally hint via a tag (e.g. `#drama`, `#history`) but it is never required.
 
 **Key differentiating features (build in priority order):**
-1. Core pipeline (all 3 modes)
+1. Core pipeline (single input → auto-classified comic)
 2. Choose Your POV (same event, different perspectives)
-3. Remix & Meme Mode (tap bubble → edit text inline)
+3. Remix & Meme Mode (click bubble → edit text inline)
 4. Daily Comic Digest (morning automated delivery)
 5. Audio Comic (optional, ElevenLabs — build last)
 6. Collab Comic (optional, Agora — stretch goal)
@@ -33,8 +41,8 @@ StoryStrip AI transforms any news article, historical event, or internet drama i
 |---|---|---|
 | **Frontend** | React + Tailwind CSS (Vite) | Web app, desktop-first |
 | **Backend** | Python + FastAPI | Direct pipeline, no Dify |
-| **Script Gen** | OpenAI GPT-4o | Comic script as structured JSON |
-| **Image Gen** | OpenAI GPT-4o image | Parallel panel generation |
+| **Script Gen** | OpenAI gpt-4.1 | Comic script as structured JSON |
+| **Image Gen** | OpenAI gpt-image-1 | Parallel panel generation |
 | **Content Fetch** | Exa AI | News articles + historical research |
 | **Social Scrape** | Bright Data | Drama mode — Twitter/Reddit context |
 | **Cache/Search** | Zilliz (Milvus) | Vector cache for repeat topics |
@@ -45,30 +53,32 @@ StoryStrip AI transforms any news article, historical event, or internet drama i
 ### Pipeline (5 stages, target <30s total)
 
 ```
-Input (URL / text / drama)
+Input (any text: URL / event / drama / free-form)
   │
   ▼
-Stage 1: Content Acquisition (3–5s)
-  News Mode  → Exa fetch article
-  History    → Exa deep search
-  Drama      → Bright Data scrape + GPT-4o summary
-  [Check Zilliz cache first — skip if similarity > 0.92]
+Stage 1: Input Classification + Content Acquisition (3–5s)
+  gpt-4.1 classifies input type: url | history | drama | freeform
+  url      → Exa fetch full article
+  history  → Exa deep research (facts, dates, quotes, turning points)
+  drama    → Bright Data social scrape + gpt-4.1 timeline summary
+  freeform → gpt-4.1 extracts narrative directly
+  [Check Zilliz cache first — skip if cosine similarity > 0.92]
   │
   ▼
 Stage 2: Comic Script Generation (5–8s)
-  GPT-4o → structured JSON script
-  { title, panels: [{ scene, characters, dialogue, narration, sfx }], art_style }
+  gpt-4.1 → structured JSON script
+  { title, detected_type, panels: [{ scene, characters, dialogue, narration, sfx }], art_style }
   │
   ▼
 Stage 3: Panel Image Generation (10–15s)
-  Generate panels in parallel (2 concurrent)
+  gpt-image-1, panels generated in parallel (2 concurrent via asyncio semaphore)
   Style prefix + character consistency description injected into each prompt
   Fallback: VALSEA API → SVG template
   │
   ▼
 Stage 4: Comic Assembly (3–5s)
   Frontend overlays speech bubbles, narration boxes, SFX as HTML/CSS layers
-  Text layers are editable (contenteditable or controlled React state)
+  Text layers are editable + deletable (controlled React state)
   │
   ▼
 Stage 5: Output & Distribution (2–3s)
@@ -112,8 +122,7 @@ storystrip/
 │   │   │   │   ├── NarrationBox.tsx     # Caption overlay
 │   │   │   │   └── SfxText.tsx          # Comic-font SFX overlay
 │   │   │   ├── Generator/
-│   │   │   │   ├── ModeSelector.tsx     # News / History / Drama tabs
-│   │   │   │   └── InputForm.tsx        # URL / text / drama input
+│   │   │   │   └── InputForm.tsx        # Single text input + art style selector
 │   │   │   ├── ShareCard.tsx            # Export comic as image
 │   │   │   └── DailyDigest.tsx          # Morning digest page
 │   │   ├── pages/
@@ -166,13 +175,18 @@ storystrip/
 }
 ```
 
-**Character consistency:** Extract character description from Panel 1 output using GPT-4o Vision, inject verbatim into all subsequent panel prompts. Never skip this — it's the hardest UX problem.
+**Model usage by task:**
+- `gpt-4.1` — input classification, content summarization, script generation, character vision extraction, POV rewrite
+- `gpt-4.1-mini` — remix/tone-shift (cheap, short output), daily digest summaries
+- `gpt-image-1` — all panel image generation
+
+**Character consistency:** After generating Panel 1 image, call `gpt-4.1` with vision to describe the character back as text. Inject that description verbatim into all subsequent panel prompts. Never skip this — it's the hardest UX problem.
 
 **Parallel image generation:** Use `asyncio.gather` with a semaphore limiting 2 concurrent requests. Do not generate panels sequentially.
 
-**Zilliz caching:** Always check cache before calling Exa/GPT-4o. Embed the input query, search Zilliz, return hit if cosine similarity > 0.92.
+**Zilliz caching:** Always check cache before calling Exa/gpt-4.1. Embed the input query, search Zilliz, return hit if cosine similarity > 0.92.
 
-**Fallback chain:** GPT-4o image gen → VALSEA API → SVG template. Never return an empty panel.
+**Fallback chain:** gpt-image-1 → VALSEA API → SVG template. Never return an empty panel.
 
 **Error handling:** All pipeline stages must catch exceptions and emit partial results with error flags, never a 500. Frontend shows which panels failed and retries individually.
 
@@ -304,12 +318,10 @@ CORS_ORIGINS=http://localhost:5173
 
 Build in this exact order. Do not skip ahead.
 
-1. **Backend pipeline** — content fetch → script gen → image gen → storage (News Mode only)
+1. **Backend pipeline** — input classifier → content fetch → script gen → image gen → storage
 2. **Frontend ComicViewer** — panel display + editable/deletable speech bubbles
-3. **Input form + mode selector** — News / History / Drama UI
-4. **History Mode** — same pipeline, Exa historical search
-5. **Drama Mode** — add Bright Data scrape step
-6. **Choose Your POV** — GPT-4o system prompt modifier, tab UI
+3. **Input form** — single text input, art style selector, submit → stream results
+4. **Choose Your POV** — gpt-4.1 system prompt modifier, tab UI
 7. **Remix Mode** — edit dialogue tone, contenteditable bubbles
 8. **Share card** — html2canvas export for Instagram/Twitter formats
 9. **Daily Digest** — scheduled backend job + digest page UI
@@ -333,6 +345,7 @@ Build in this exact order. Do not skip ahead.
 ## 10. What NOT to Build
 
 - **No Dify** — zero workflow nodes, zero Dify API calls, zero Dify dependencies
+- **No mode selector UI** — single input box only; AI classifies internally
 - **No ByteRover** — user preferences live in Supabase `user_preferences` table
 - **No voice/audio until steps 1–9 are complete** — ElevenLabs is the last feature
 - **No Agora/Collab Comic** unless all other features are working and polished
