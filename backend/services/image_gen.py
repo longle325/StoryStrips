@@ -49,7 +49,7 @@ async def generate_panel_image(panel: dict, art_style: str, include_text: bool =
 
     response = await client.images.generate(
         model="gpt-image-1.5",
-        prompt=prompt[:4000],
+        prompt=prompt[:5000],
         n=1,
         size="1024x1024",
         quality="low",
