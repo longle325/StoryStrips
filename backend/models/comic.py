@@ -27,6 +27,7 @@ class CharacterPosition(str, Enum):
 
 
 InputType = Literal["url", "history", "drama", "freeform"]
+TextMode = Literal["with_text", "without_text"]
 ImageStatus = Literal["pending", "generating", "done", "error"]
 
 
@@ -69,13 +70,17 @@ class Comic(BaseModel):
     input_query: str
     script_json: ComicScript
     panel_urls: list[str]
+    full_page_url: str | None = None
+    text_mode: TextMode = "without_text"
+    is_digest: bool = False
+    digest_date: str | None = None
     shareable_url: str | None = None
     created_at: str
 
 
 class GenerateRequest(BaseModel):
     input: str
-    mode: InputType  # "url" | "history" | "drama" | "freeform"
+    mode: InputType
     art_style: ArtStyle | None = None
     pov: str | None = None
     include_text: bool = True
@@ -85,6 +90,8 @@ class GenerateResponse(BaseModel):
     comic_id: str
     script: ComicScript
     panels: list[Panel]
+    full_page_url: str | None = None
+    text_mode: TextMode = "without_text"
 
 
 class RemixRequest(BaseModel):
@@ -96,6 +103,19 @@ class RemixResponse(BaseModel):
     comic_id: str
     panels: list[Panel]
     script: ComicScript
+
+
+class DigestArticle(BaseModel):
+    title: str
+    summary: str
+    source_url: str | None = None
+    comic_id: str | None = None
+    full_page_url: str | None = None
+
+
+class DigestResponse(BaseModel):
+    date: str
+    articles: list[DigestArticle]
 
 
 class ErrorResponse(BaseModel):

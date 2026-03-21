@@ -1,5 +1,6 @@
 export type Mode = "url" | "history" | "drama" | "freeform";
 export type ArtStyle = "manga" | "marvel" | "chibi" | "noir" | "webtoon" | "pixel" | "vintage";
+export type TextMode = "with_text" | "without_text";
 export type ImageStatus = "pending" | "generating" | "done" | "error";
 
 export interface Dialogue {
@@ -23,6 +24,13 @@ export interface Panel {
   image_status: ImageStatus;
 }
 
+export interface ComicScript {
+  title: string;
+  art_style: ArtStyle;
+  detected_type: Mode;
+  panels: Panel[];
+}
+
 export interface GenerateComicPayload {
   input: string;
   mode: Mode;
@@ -33,19 +41,45 @@ export interface GenerateComicPayload {
 
 export interface GeneratedComic {
   comic_id: string;
-  script: {
-    title: string;
-    art_style: ArtStyle;
-    detected_type: Mode;
-    panels: Panel[];
-  };
+  script: ComicScript;
   panels: Panel[];
+  full_page_url?: string | null;
+  text_mode?: TextMode;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+export interface ComicRecord {
+  id: string;
+  title: string;
+  art_style: ArtStyle;
+  detected_type: Mode;
+  input_query: string;
+  panel_urls: string[];
+  created_at: string;
+}
+
+export interface DigestArticle {
+  title: string;
+  summary: string;
+  source_url: string | null;
+  comic_id: string | null;
+  panel_urls: string[];
+  script_json?: ComicScript | null;
+}
+
+export interface DigestResponse {
+  date: string;
+  articles: DigestArticle[];
+}
+
+export interface RemixPayload {
+  comic_id: string;
+  tone: "comedy" | "vietnamese" | "eli5" | "serious";
+}
+
+const API_BASE = "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -68,6 +102,31 @@ export async function generateComic(payload: GenerateComicPayload): Promise<Gene
   });
 }
 
-export async function getDigest(): Promise<Array<{ id: string; title: string; source_url: string; comic_id: string | null }>> {
-  return request<Array<{ id: string; title: string; source_url: string; comic_id: string | null }>>("/digest");
+export async function getComic(comicId: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/comics/${comicId}`);
+}
+
+export async function listComics(limit = 50, offset = 0): Promise<{ comics: ComicRecord[]; count: number }> {
+  return request<{ comics: ComicRecord[]; count: number }>(`/comics?limit=${limit}&offset=${offset}`);
+}
+
+export async function deleteComic(comicId: string): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(`/comics/${comicId}`, { method: "DELETE" });
+}
+
+export async function remixComic(payload: RemixPayload): Promise<GeneratedComic> {
+  return request<GeneratedComic>("/remix", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>("/digest");
+}
+
+export async function refreshDigest(): Promise<{ status: string; count: number; articles: DigestArticle[] }> {
+  return request<{ status: string; count: number; articles: DigestArticle[] }>("/digest/refresh", {
+    method: "POST",
+  });
 }

@@ -1,44 +1,59 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
+import asyncio
+from datetime import datetime, timezone
 
-from routers.comics import _comics
+from fastapi import APIRouter, HTTPException
+from supabase import create_client
 
+from config import settings
+from services.digest import generate_digest
 
 router = APIRouter()
 
-
-class DigestScheduleRequest(BaseModel):
-    interval_minutes: int = 60
-
-
-_digest_config = {"interval_minutes": 60}
+_supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+_digest_running = False
 
 
 @router.get("/digest")
 async def get_digest():
-    comics = sorted(_comics.values(), key=lambda item: item.get("created_at", ""), reverse=True)
-    if not comics:
-        return []
-
-    digest_items = []
-    for comic in comics[:10]:
-        input_query = comic.get("input_query", "")
-        source_url = input_query if input_query.startswith("http") else f"https://example.com/search?q={input_query}"
-        digest_items.append(
-            {
-                "id": f"digest-{comic['id']}",
-                "title": comic.get("title", "Untitled"),
-                "source_url": source_url,
-                "comic_id": comic["id"],
-            }
+    """Return today's digest comics from Supabase."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        resp = (
+            _supabase.table("comics")
+            .select("id, title, input_query, panel_urls, script_json, created_at")
+            .eq("is_digest", True)
+            .eq("digest_date", today)
+            .order("created_at", desc=False)
+            .execute()
         )
-    return digest_items
+        articles = []
+        for row in resp.data:
+            articles.append({
+                "title": row.get("title", "Untitled"),
+                "summary": row.get("input_query", ""),
+                "source_url": None,
+                "comic_id": row["id"],
+                "panel_urls": row.get("panel_urls", []),
+                "script_json": row.get("script_json"),
+            })
+        return {"date": today, "articles": articles}
+    except Exception as e:
+        print(f"[digest] Failed to fetch digest: {e}")
+        return {"date": today, "articles": []}
 
 
-@router.post("/digest/schedule")
-async def schedule_digest(req: DigestScheduleRequest):
-    _digest_config["interval_minutes"] = max(5, req.interval_minutes)
-    return {
-        "status": "scheduled",
-        "interval_minutes": _digest_config["interval_minutes"],
-    }
+@router.post("/digest/refresh")
+async def refresh_digest():
+    """Manually trigger digest generation for today."""
+    global _digest_running
+    if _digest_running:
+        return {"status": "already_running"}
+
+    _digest_running = True
+    try:
+        results = await generate_digest()
+        return {"status": "completed", "count": len(results), "articles": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Digest generation failed: {e}")
+    finally:
+        _digest_running = False

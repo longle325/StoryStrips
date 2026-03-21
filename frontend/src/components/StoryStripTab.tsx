@@ -6,12 +6,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { generateComic, type ArtStyle, type Mode } from "@/api/client";
-import { addComicToCache, loadCachedComics, type CachedComic } from "@/lib/comicCache";
+import { generateComic, type ArtStyle, type Mode, type GeneratedComic } from "@/api/client";
 
 const artStyles = ["Manga", "Marvel", "Chibi", "Noir", "Webtoon", "Pixel", "Vintage"];
 const modes = ["News Mode", "History Mode", "Drama Mode"];
-const textOptions = ["With Text", "Without Text"];
 
 const modeMap: Record<string, Mode> = {
   "News Mode": "freeform",
@@ -74,6 +72,11 @@ const Dropdown = ({
   );
 };
 
+interface RecentComic extends GeneratedComic {
+  source_input: string;
+  created_at: string;
+}
+
 interface StoryStripTabProps {
   artStyle: string;
   onArtStyleChange: (style: string) => void;
@@ -81,10 +84,9 @@ interface StoryStripTabProps {
 
 const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [mode, setMode] = useState("News Mode");
-  const [textOption, setTextOption] = useState("With Text");
   const [inputQuery, setInputQuery] = useState("");
-  const [recentComics, setRecentComics] = useState<CachedComic[]>(() => loadCachedComics());
-  const [selectedComicId, setSelectedComicId] = useState<string | null>(() => loadCachedComics()[0]?.comic_id ?? null);
+  const [recentComics, setRecentComics] = useState<RecentComic[]>([]);
+  const [selectedComicId, setSelectedComicId] = useState<string | null>(null);
   const [viewerComicId, setViewerComicId] = useState<string | null>(null);
   const [viewerPanelIndex, setViewerPanelIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -99,9 +101,7 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
     : null;
 
   const viewerPanels = useMemo(() => {
-    if (!viewerComic) {
-      return [];
-    }
+    if (!viewerComic) return [];
     return viewerComic.panels.slice(0, 5);
   }, [viewerComic]);
 
@@ -110,16 +110,12 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   }, [viewerComicId]);
 
   const goPrevPanel = () => {
-    if (!viewerPanels.length) {
-      return;
-    }
+    if (!viewerPanels.length) return;
     setViewerPanelIndex((prev) => (prev - 1 + viewerPanels.length) % viewerPanels.length);
   };
 
   const goNextPanel = () => {
-    if (!viewerPanels.length) {
-      return;
-    }
+    if (!viewerPanels.length) return;
     setViewerPanelIndex((prev) => (prev + 1) % viewerPanels.length);
   };
 
@@ -142,10 +138,14 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         input: trimmedInput,
         mode: selectedMode,
         art_style: styleMap[artStyle],
-        include_text: textOption === "With Text",
       });
-      const updated = addComicToCache(comic, trimmedInput);
-      setRecentComics(updated);
+
+      const recent: RecentComic = {
+        ...comic,
+        source_input: trimmedInput,
+        created_at: new Date().toISOString(),
+      };
+      setRecentComics((prev) => [recent, ...prev.filter((c) => c.comic_id !== comic.comic_id)]);
       setSelectedComicId(comic.comic_id);
       setViewerComicId(comic.comic_id);
     } catch (error) {
@@ -193,10 +193,9 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
             </label>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <Dropdown label="Style" options={artStyles} value={artStyle} onChange={onArtStyleChange} />
             <Dropdown label="Mode" options={modes} value={mode} onChange={setMode} />
-            <Dropdown label="Text" options={textOptions} value={textOption} onChange={setTextOption} />
           </div>
 
           <Button className="mt-4 w-full gap-2 glow-primary" size="lg" onClick={handleGenerate} disabled={isGenerating}>
@@ -216,36 +215,39 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         <h2 className="mb-4 text-xl font-semibold text-foreground">Recent Stories</h2>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
           {recentComics.length > 0 ? (
-            recentComics.map((comic) => (
-              <motion.div
-                key={comic.comic_id}
-                whileHover={{ scale: 1.05, y: -4 }}
-                className={`group flex-shrink-0 overflow-hidden rounded-xl border ${selectedComicId === comic.comic_id ? "border-primary" : "border-border"}`}
-              >
-                {comic.panels[0]?.image_url ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedComicId(comic.comic_id);
-                      setViewerComicId(comic.comic_id);
-                    }}
-                    className="relative block w-32 aspect-square bg-secondary"
-                  >
-                    <img src={comic.panels[0].image_url} alt={comic.script.title} className="h-full w-full object-cover" />
-                    <span className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-1 text-left text-[10px] text-white">
-                      {comic.panels.length} panels
-                    </span>
-                  </button>
-                ) : (
-                  <div className="flex w-32 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
-                    {comic.panels[0]?.image_status ?? "pending"}
+            recentComics.map((comic) => {
+              const thumb = comic.panels[0]?.image_url;
+              return (
+                <motion.div
+                  key={comic.comic_id}
+                  whileHover={{ scale: 1.05, y: -4 }}
+                  className={`group flex-shrink-0 overflow-hidden rounded-xl border ${selectedComicId === comic.comic_id ? "border-primary" : "border-border"}`}
+                >
+                  {thumb ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedComicId(comic.comic_id);
+                        setViewerComicId(comic.comic_id);
+                      }}
+                      className="relative block w-32 aspect-square bg-secondary"
+                    >
+                      <img src={thumb} alt={comic.script.title} className="h-full w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-1 text-left text-[10px] text-white">
+                        {comic.panels.length} panels
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex w-32 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
+                      {comic.panels[0]?.image_status ?? "pending"}
+                    </div>
+                  )}
+                  <div className="bg-card p-2">
+                    <p className="line-clamp-1 text-xs text-muted-foreground">{comic.script.title}</p>
                   </div>
-                )}
-                <div className="bg-card p-2">
-                  <p className="line-clamp-1 text-xs text-muted-foreground">{comic.script.title}</p>
-                </div>
-              </motion.div>
-            ))
+                </motion.div>
+              );
+            })
           ) : (
             <div className="flex h-36 w-full items-center justify-center rounded-xl border border-dashed border-border bg-card text-sm text-muted-foreground">
               Generate a comic to see recent panels here.
@@ -254,6 +256,7 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         </div>
       </motion.section>
 
+      {/* Viewer Dialog */}
       <Dialog open={Boolean(viewerComic)} onOpenChange={(open) => !open && setViewerComicId(null)}>
         <DialogContent className="max-w-6xl border border-border/40 bg-card/90 backdrop-blur-md p-6">
           <DialogTitle>{viewerComic?.script.title ?? "Story"}</DialogTitle>
@@ -267,9 +270,7 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
                   const isCenter = normalizedOffset === 0;
                   const absOffset = Math.abs(normalizedOffset);
 
-                  if (absOffset > 2) {
-                    return null;
-                  }
+                  if (absOffset > 2) return null;
 
                   return (
                     <motion.div
@@ -287,11 +288,8 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
                       drag={isCenter ? "x" : false}
                       dragConstraints={{ left: 0, right: 0 }}
                       onDragEnd={(_, info) => {
-                        if (info.offset.x > 80) {
-                          goPrevPanel();
-                        } else if (info.offset.x < -80) {
-                          goNextPanel();
-                        }
+                        if (info.offset.x > 80) goPrevPanel();
+                        else if (info.offset.x < -80) goNextPanel();
                       }}
                       style={{ transformStyle: "preserve-3d" }}
                     >
@@ -346,7 +344,6 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
           )}
         </DialogContent>
       </Dialog>
-
     </div>
   );
 };
