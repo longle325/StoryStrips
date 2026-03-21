@@ -1,24 +1,25 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Sparkles, Upload, Maximize, Save, Type, Palette,
-  ChevronDown, Image as ImageIcon,
+  Sparkles, Upload,
+  ChevronDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { generateComic, type ArtStyle, type Comic, type Mode } from "@/api/client";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { generateComic, type ArtStyle, type Mode } from "@/api/client";
+import { addComicToCache, loadCachedComics, type CachedComic } from "@/lib/comicCache";
 
 const artStyles = ["Manga", "Marvel", "Chibi", "Noir", "Webtoon", "Pixel", "Vintage"];
 const modes = ["News Mode", "History Mode", "Drama Mode"];
 const textOptions = ["With Text", "Without Text"];
-const fonts = ["Comic Sans", "Bangers", "Space Grotesk", "JetBrains Mono"];
 
 const modeMap: Record<string, Mode> = {
-  "News Mode": "news",
+  "News Mode": "freeform",
   "History Mode": "history",
   "Drama Mode": "drama",
 };
+
+const URL_PATTERN = /^https?:\/\//i;
 
 const styleMap: Record<string, ArtStyle> = {
   Manga: "manga",
@@ -82,16 +83,45 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [mode, setMode] = useState("News Mode");
   const [textOption, setTextOption] = useState("With Text");
   const [inputQuery, setInputQuery] = useState("");
-  const [bubbleText, setBubbleText] = useState("Drag bubble text");
-  const [fontSize, setFontSize] = useState([16]);
-  const [selectedFont, setSelectedFont] = useState("Comic Sans");
-  const [bubbleColor, setBubbleColor] = useState("#00d4ff");
-  const [generatedComic, setGeneratedComic] = useState<Comic | null>(null);
+  const [recentComics, setRecentComics] = useState<CachedComic[]>(() => loadCachedComics());
+  const [selectedComicId, setSelectedComicId] = useState<string | null>(() => loadCachedComics()[0]?.comic_id ?? null);
+  const [viewerComicId, setViewerComicId] = useState<string | null>(null);
+  const [viewerPanelIndex, setViewerPanelIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const activePanelUrl = generatedComic?.panel_urls[0] ?? "";
-  const activeDialogue = bubbleText;
+  const selectedComic = selectedComicId
+    ? recentComics.find((comic) => comic.comic_id === selectedComicId) ?? null
+    : null;
+
+  const viewerComic = viewerComicId
+    ? recentComics.find((comic) => comic.comic_id === viewerComicId) ?? null
+    : null;
+
+  const viewerPanels = useMemo(() => {
+    if (!viewerComic) {
+      return [];
+    }
+    return viewerComic.panels.slice(0, 5);
+  }, [viewerComic]);
+
+  useEffect(() => {
+    setViewerPanelIndex(0);
+  }, [viewerComicId]);
+
+  const goPrevPanel = () => {
+    if (!viewerPanels.length) {
+      return;
+    }
+    setViewerPanelIndex((prev) => (prev - 1 + viewerPanels.length) % viewerPanels.length);
+  };
+
+  const goNextPanel = () => {
+    if (!viewerPanels.length) {
+      return;
+    }
+    setViewerPanelIndex((prev) => (prev + 1) % viewerPanels.length);
+  };
 
   const handleGenerate = async () => {
     const trimmedInput = inputQuery.trim();
@@ -104,17 +134,20 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
     setErrorMessage("");
 
     try {
+      const selectedMode = mode === "News Mode" && URL_PATTERN.test(trimmedInput)
+        ? "url"
+        : modeMap[mode];
+
       const comic = await generateComic({
-        mode: modeMap[mode],
-        input_query: trimmedInput,
+        input: trimmedInput,
+        mode: selectedMode,
         art_style: styleMap[artStyle],
         include_text: textOption === "With Text",
       });
-      setGeneratedComic(comic);
-      const initialText = comic.script_json.panels[0]?.dialogue[0]?.text;
-      if (initialText) {
-        setBubbleText(initialText);
-      }
+      const updated = addComicToCache(comic, trimmedInput);
+      setRecentComics(updated);
+      setSelectedComicId(comic.comic_id);
+      setViewerComicId(comic.comic_id);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to generate comic.");
     } finally {
@@ -182,16 +215,34 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
       >
         <h2 className="mb-4 text-xl font-semibold text-foreground">Recent Stories</h2>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
-          {generatedComic ? (
-            generatedComic.panel_urls.map((url, index) => (
+          {recentComics.length > 0 ? (
+            recentComics.map((comic) => (
               <motion.div
-                key={`${generatedComic.id}-${index}`}
+                key={comic.comic_id}
                 whileHover={{ scale: 1.05, y: -4 }}
-                className="flex-shrink-0 overflow-hidden rounded-xl border border-border"
+                className={`group flex-shrink-0 overflow-hidden rounded-xl border ${selectedComicId === comic.comic_id ? "border-primary" : "border-border"}`}
               >
-                <img src={url} alt={`Panel ${index + 1}`} className="h-36 w-28 object-cover" />
+                {comic.panels[0]?.image_url ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedComicId(comic.comic_id);
+                      setViewerComicId(comic.comic_id);
+                    }}
+                    className="relative block w-32 aspect-square bg-secondary"
+                  >
+                    <img src={comic.panels[0].image_url} alt={comic.script.title} className="h-full w-full object-cover" />
+                    <span className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-1 text-left text-[10px] text-white">
+                      {comic.panels.length} panels
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex w-32 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
+                    {comic.panels[0]?.image_status ?? "pending"}
+                  </div>
+                )}
                 <div className="bg-card p-2">
-                  <p className="text-xs text-muted-foreground">{generatedComic.title}</p>
+                  <p className="line-clamp-1 text-xs text-muted-foreground">{comic.script.title}</p>
                 </div>
               </motion.div>
             ))
@@ -203,95 +254,99 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
         </div>
       </motion.section>
 
-      {/* Online Editor */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <h2 className="mb-4 text-xl font-semibold text-foreground">Online Editor</h2>
-        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-          {/* Canvas */}
-          <div className="relative flex min-h-[400px] items-center justify-center rounded-2xl border border-border bg-card">
-            {activePanelUrl ? (
-              <img src={activePanelUrl} alt="Generated panel" className="h-72 w-52 rounded-lg object-cover" />
-            ) : (
-              <div className="flex h-72 w-52 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, hsl(190,70%,20%), hsl(280,60%,20%))" }}>
-                <ImageIcon className="h-16 w-16 text-foreground/20" />
+      <Dialog open={Boolean(viewerComic)} onOpenChange={(open) => !open && setViewerComicId(null)}>
+        <DialogContent className="max-w-6xl border border-border/40 bg-card/90 backdrop-blur-md p-6">
+          <DialogTitle>{viewerComic?.script.title ?? "Story"}</DialogTitle>
+          {viewerComic && (
+            <div className="space-y-4">
+              <div className="relative h-[460px] w-full overflow-hidden rounded-2xl border border-border/60 bg-black/30">
+                {viewerPanels.map((panel, index) => {
+                  const offset = ((index - viewerPanelIndex + viewerPanels.length) % viewerPanels.length);
+                  const normalizedOffset =
+                    offset > Math.floor(viewerPanels.length / 2) ? offset - viewerPanels.length : offset;
+                  const isCenter = normalizedOffset === 0;
+                  const absOffset = Math.abs(normalizedOffset);
+
+                  if (absOffset > 2) {
+                    return null;
+                  }
+
+                  return (
+                    <motion.div
+                      key={`${viewerComic.comic_id}-${panel.panel_number}`}
+                      className="absolute left-1/2 top-1/2"
+                      animate={{
+                        x: normalizedOffset * 230,
+                        y: "-50%",
+                        scale: isCenter ? 1 : 0.72 - absOffset * 0.07,
+                        opacity: isCenter ? 1 : 0.5,
+                        zIndex: 20 - absOffset,
+                        rotateY: normalizedOffset * -10,
+                      }}
+                      transition={{ type: "spring", stiffness: 280, damping: 28 }}
+                      drag={isCenter ? "x" : false}
+                      dragConstraints={{ left: 0, right: 0 }}
+                      onDragEnd={(_, info) => {
+                        if (info.offset.x > 80) {
+                          goPrevPanel();
+                        } else if (info.offset.x < -80) {
+                          goNextPanel();
+                        }
+                      }}
+                      style={{ transformStyle: "preserve-3d" }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setViewerPanelIndex(index)}
+                        className="w-52 overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+                      >
+                        {panel.image_url ? (
+                          <div className="w-52 aspect-square bg-secondary">
+                            <img src={panel.image_url} alt={`Panel ${index + 1}`} className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="flex w-52 aspect-square items-center justify-center bg-secondary text-xs text-muted-foreground">
+                            {panel.image_status}
+                          </div>
+                        )}
+                        <div className="p-2 text-xs text-muted-foreground text-left">Panel {panel.panel_number}</div>
+                      </button>
+                    </motion.div>
+                  );
+                })}
               </div>
-            )}
-            <button className="absolute right-3 top-3 rounded-lg bg-secondary p-2 text-muted-foreground transition hover:text-primary">
-              <Maximize className="h-4 w-4" />
-            </button>
-            <div
-              className="absolute left-1/2 top-16 -translate-x-1/4 cursor-move rounded-xl border-2 border-primary/50 bg-card/90 px-4 py-2 text-sm font-medium text-foreground shadow-lg backdrop-blur"
-              style={{
-                borderColor: bubbleColor,
-                fontSize: `${fontSize[0]}px`,
-                fontFamily: selectedFont,
-              }}
-            >
-              {activeDialogue}
-            </div>
-          </div>
 
-          {/* Toolbar */}
-          <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Type className="h-4 w-4 text-primary" /> Speech Bubbles
-            </h3>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Bubble Text</label>
-              <Input
-                placeholder="Enter bubble text..."
-                className="bg-secondary"
-                value={bubbleText}
-                onChange={(event) => setBubbleText(event.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Font Size: {fontSize[0]}px</label>
-              <Slider value={fontSize} onValueChange={setFontSize} min={10} max={48} step={1} />
-            </div>
-
-            <div>
-              <label className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                <Palette className="h-3 w-3" /> Bubble Color
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={bubbleColor}
-                  onChange={(e) => setBubbleColor(e.target.value)}
-                  className="h-8 w-8 cursor-pointer rounded border-none"
-                />
-                <span className="font-mono text-xs text-muted-foreground">{bubbleColor}</span>
+              <div className="flex items-center justify-center gap-6">
+                <button
+                  type="button"
+                  onClick={goPrevPanel}
+                  disabled={!viewerPanels.length}
+                  className="rounded-full border border-border bg-secondary p-3 text-muted-foreground transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex gap-2">
+                  {viewerPanels.map((_, i) => (
+                    <span
+                      key={`dot-${i}`}
+                      className={`h-2 w-2 rounded-full ${i === viewerPanelIndex ? "bg-primary" : "bg-muted"}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={goNextPanel}
+                  disabled={!viewerPanels.length}
+                  className="rounded-full border border-border bg-secondary p-3 text-muted-foreground transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Font Family</label>
-              <div className="grid grid-cols-2 gap-2">
-                {fonts.map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setSelectedFont(f)}
-                    className={`rounded-lg border px-3 py-1.5 text-xs transition ${f === selectedFont ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground hover:border-primary/30"}`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Button className="w-full gap-2" size="lg">
-              <Save className="h-4 w-4" /> Save
-            </Button>
-          </div>
-        </div>
-      </motion.section>
     </div>
   );
 };

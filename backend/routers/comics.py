@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -11,6 +12,8 @@ router = APIRouter()
 
 _comics: dict[str, dict] = {}
 
+URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
+
 
 @router.post("/generate")
 async def generate(req: GenerateRequest):
@@ -18,10 +21,18 @@ async def generate(req: GenerateRequest):
     if cached:
         return cached
 
-    content = await content_fetch.fetch_content(req.input, req.mode)
-    script = await script_gen.generate_script(content, req.art_style, req.pov, req.mode)
+    effective_mode = req.mode
+    if req.mode == "url" and not URL_PATTERN.match(req.input.strip()):
+        effective_mode = "freeform"
 
-    panel_results = await image_gen.generate_all_panels(script["panels"], script["art_style"])
+    content = await content_fetch.fetch_content(req.input, effective_mode)
+    script = await script_gen.generate_script(content, req.art_style, req.pov, effective_mode)
+
+    panel_results = await image_gen.generate_all_panels(
+        script["panels"],
+        script["art_style"],
+        include_text=req.include_text,
+    )
 
     results_map = {pnum: url for pnum, url in panel_results}
     for panel in script["panels"]:

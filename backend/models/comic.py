@@ -78,6 +78,7 @@ class GenerateRequest(BaseModel):
     mode: InputType  # "url" | "history" | "drama" | "freeform"
     art_style: ArtStyle | None = None
     pov: str | None = None
+    include_text: bool = True
 
 
 class GenerateResponse(BaseModel):

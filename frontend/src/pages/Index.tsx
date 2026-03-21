@@ -10,7 +10,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("storystrip");
   const [artStyle, setArtStyle] = useState("Manga");
 
-  const showBackground = activeTab === "storystrip" || activeTab === "my-stories";
+  const showBackground = activeTab === "storystrip" || activeTab === "my-stories" || activeTab === "daily-digest";
 
   return (
     <div className="min-h-screen">

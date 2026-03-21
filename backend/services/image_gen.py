@@ -13,7 +13,8 @@ from prompts.style_prompts import STYLE_PROMPTS
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 supabase = create_client(settings.supabase_url, settings.supabase_service_key)
 
-SUFFIX = "comic book panel, clear composition, draw speech bubbles with dialogue text inside them"
+SUFFIX_WITH_TEXT = "comic book panel, clear composition, draw speech bubbles with dialogue text inside them"
+SUFFIX_NO_TEXT = "comic book panel, clear composition, no text in image, no speech bubbles, leave clear space for overlays"
 
 
 def _build_dialogue_prompt(panel: dict) -> str:
@@ -28,17 +29,23 @@ def _build_dialogue_prompt(panel: dict) -> str:
     return "\n".join(parts)
 
 
-async def generate_panel_image(panel: dict, art_style: str) -> str:
+async def generate_panel_image(panel: dict, art_style: str, include_text: bool = True) -> str:
     style_prefix = STYLE_PROMPTS.get(art_style, "")
     chars = ", ".join(
         f"{c['name']} ({c['emotion']}, {c['position']})" for c in panel.get("characters", [])
     )
-    dialogue_prompt = _build_dialogue_prompt(panel)
-    prompt = (
-        f"{style_prefix}. {panel['scene_description']}. Characters: {chars}.\n"
-        f"Speech bubbles with dialogue:\n{dialogue_prompt}\n"
-        f"{SUFFIX}"
-    )
+    if include_text:
+        dialogue_prompt = _build_dialogue_prompt(panel)
+        prompt = (
+            f"{style_prefix}. {panel['scene_description']}. Characters: {chars}.\n"
+            f"Speech bubbles with dialogue:\n{dialogue_prompt}\n"
+            f"{SUFFIX_WITH_TEXT}"
+        )
+    else:
+        prompt = (
+            f"{style_prefix}. {panel['scene_description']}. Characters: {chars}.\n"
+            f"{SUFFIX_NO_TEXT}"
+        )
 
     response = await client.images.generate(
         model="gpt-image-1.5",
@@ -66,12 +73,16 @@ async def generate_panel_image(panel: dict, art_style: str) -> str:
     return public_url
 
 
-async def generate_all_panels(panels: list[dict], art_style: str) -> list[tuple[int, str]]:
+async def generate_all_panels(
+    panels: list[dict],
+    art_style: str,
+    include_text: bool = True,
+) -> list[tuple[int, str]]:
     sem = asyncio.Semaphore(4)
 
     async def gen_one(panel):
         async with sem:
-            url = await generate_panel_image(panel, art_style)
+            url = await generate_panel_image(panel, art_style, include_text=include_text)
             return (panel["panel_number"], url)
 
     results = await asyncio.gather(*[gen_one(p) for p in panels], return_exceptions=True)
