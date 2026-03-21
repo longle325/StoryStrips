@@ -21,7 +21,7 @@ async def generate_script(content: str, art_style: str | None, pov: str | None, 
         ],
         response_format={"type": "json_object"},
         temperature=0.8,
-        max_tokens=2000,
+        max_tokens=4000,
     )
     raw = response.choices[0].message.content
     return json.loads(raw)
