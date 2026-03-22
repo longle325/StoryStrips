@@ -12,7 +12,7 @@ StoryStrip AI transforms any news article, historical event, or internet drama i
 
 ## Features
 
-- **AI Comic Generation** — GPT-4o scripts + gpt-image-1 panel images, generated in parallel
+- **AI Comic Generation** — GPT-4.1 scripts + gpt-image-1.5 panel images, generated in parallel
 - **7 Art Styles** — Manga, Marvel, Chibi, Noir, Webtoon, Pixel, Vintage
 - **Choose Your POV** — same event told from different character perspectives
 - **Remix & Meme Mode** — edit dialogue text inline, change tone (comedy, ELI5, etc.)
@@ -28,8 +28,8 @@ StoryStrip AI transforms any news article, historical event, or internet drama i
 |---|---|
 | Frontend | React + Tailwind CSS (Vite) |
 | Backend | Python + FastAPI |
-| Script Gen | OpenAI GPT-4o-mini |
-| Image Gen | OpenAI gpt-image-1 |
+| Script Gen | OpenAI GPT-4.1 |
+| Image Gen | OpenAI gpt-image-1.5 |
 | Content Fetch | Exa AI |
 | Social Scrape | Bright Data |
 | Cache/Search | Zilliz (Milvus) |
@@ -48,8 +48,8 @@ storystrip/
 │   │   └── digest.py         # GET /digest, POST /digest/refresh/stream
 │   ├── services/
 │   │   ├── content_fetch.py  # Exa + Bright Data content acquisition
-│   │   ├── script_gen.py     # GPT-4o-mini comic script generation
-│   │   ├── image_gen.py      # gpt-image-1 parallel panel generation
+│   │   ├── script_gen.py     # GPT-4.1 comic script generation
+│   │   ├── image_gen.py      # gpt-image-1.5 parallel panel generation
 │   │   ├── digest.py         # Daily digest pipeline
 │   │   ├── cache.py          # Zilliz vector cache (REST API)
 │   │   ├── storage.py        # Supabase storage upload
@@ -125,8 +125,8 @@ ELEVENLABS_API_KEY=     # Audio (future)
 ```
 Input (URL / text / drama)
   → Content Acquisition (Exa / Bright Data, 3-5s)
-  → Comic Script Generation (GPT-4o-mini, 3-5s)
-  → Panel Image Generation (gpt-image-1, parallel, 10-15s)
+  → Comic Script Generation (GPT-4.1, 3-5s)
+  → Panel Image Generation (gpt-image-1.5, parallel, 10-15s)
   → Supabase Storage Upload
   → Shareable Comic Output
 ```
