@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Sparkles, Upload,
@@ -94,31 +94,6 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
   const [viewerPanelIndex, setViewerPanelIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [genPercent, setGenPercent] = useState(0);
-  const genStartRef = useRef(0);
-  const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopGenTimer = useCallback(() => {
-    if (genTimerRef.current) {
-      clearInterval(genTimerRef.current);
-      genTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isGenerating) {
-      genStartRef.current = Date.now();
-      setGenPercent(0);
-      genTimerRef.current = setInterval(() => {
-        const elapsed = Date.now() - genStartRef.current;
-        const pct = 90 * (1 - Math.exp(-elapsed / 12000));
-        setGenPercent(Math.min(pct, 90));
-      }, 200);
-    } else {
-      stopGenTimer();
-    }
-    return stopGenTimer;
-  }, [isGenerating, stopGenTimer]);
 
   const selectedComic = selectedComicId
     ? recentComics.find((comic) => comic.comic_id === selectedComicId) ?? null
@@ -177,14 +152,10 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
       setRecentComics((prev) => [recent, ...prev.filter((c) => c.comic_id !== comic.comic_id)]);
       setSelectedComicId(comic.comic_id);
       setViewerComicId(comic.comic_id);
-      stopGenTimer();
-      setGenPercent(100);
-      await new Promise((r) => setTimeout(r, 400));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to generate comic.");
     } finally {
       setIsGenerating(false);
-      setGenPercent(0);
     }
   };
 
@@ -236,20 +207,6 @@ const StoryStripTab = ({ artStyle, onArtStyleChange }: StoryStripTabProps) => {
             <Sparkles className="h-4 w-4" />
             {isGenerating ? "Generating..." : "Generate Comic"}
           </Button>
-          {isGenerating && (
-            <div className="mt-3 space-y-1.5">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <motion.div
-                  className="h-full rounded-full bg-primary"
-                  animate={{ width: `${genPercent}%` }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {genPercent >= 100 ? "Complete!" : genPercent < 5 ? "Starting..." : "Generating comic..."}
-              </p>
-            </div>
-          )}
           {errorMessage && <p className="mt-3 text-sm text-destructive">{errorMessage}</p>}
         </div>
       </motion.section>
