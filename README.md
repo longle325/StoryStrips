@@ -131,6 +131,5 @@ Input (URL / text / drama)
   → Shareable Comic Output
 ```
 
-## License
-
-MIT
+## Demo
+Link: https://www.youtube.com/watch?v=FQPYkcAc3Go&t=16s
